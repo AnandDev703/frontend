@@ -253,7 +253,7 @@ export async function askContractAI(
   return getOfflineChatResponse(question, contract);
 }
 
-function getOfflineChatResponse(question: string, contract: ContractAnalysis): { text: string; referencedClause?: string } {
+export function getOfflineChatResponse(question: string, contract: ContractAnalysis): { text: string; referencedClause?: string } {
   const q = question.toLowerCase();
   const clauses = contract.clauses || [];
 

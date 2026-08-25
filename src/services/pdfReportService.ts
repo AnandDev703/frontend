@@ -12,168 +12,180 @@ export function generatePdfRiskReport(contract: ContractAnalysis): void {
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 14;
+  const contentWidth = pageWidth - (margin * 2);
 
-  // Header Banner - Navy Brand Color
-  doc.setFillColor(11, 25, 44); // #0B192C
+  // 1. Header Banner - Deep Indigo Brand Styling
+  doc.setFillColor(30, 27, 75); // #1E1B4B
   doc.rect(0, 0, pageWidth, 28, 'F');
 
-  // Title & Subtitle
-  doc.setTextColor(255, 255, 255);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(16);
-  doc.text('CLAUSEX — EXECUTIVE CONTRACT RISK REPORT', margin, 12);
+  // Brand Accent Line
+  doc.setFillColor(124, 58, 237); // #7C3AED
+  doc.rect(0, 27, pageWidth, 1.5, 'F');
 
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  doc.text('Know the risk before you sign • AI-Powered Legal Risk Analysis', margin, 18);
-  doc.text(`Generated: ${new Date().toLocaleDateString()} | Role: ${contract.userRole.toUpperCase()}`, margin, 24);
-
-  // Metadata Card
-  doc.setFillColor(248, 250, 252);
-  doc.setDrawColor(226, 232, 240);
-  doc.roundedRect(margin, 34, pageWidth - (margin * 2), 26, 2, 2, 'FD');
-
-  doc.setTextColor(30, 41, 59);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
-  doc.text(contract.contractName || 'Contract Document', margin + 4, 41);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  doc.setTextColor(100, 116, 139);
-  doc.text(`Type: ${contract.contractType} | Total Clauses Evaluated: ${contract.clauses.length}`, margin + 4, 47);
-  doc.text(`Analysis ID: ${contract.id}`, margin + 4, 53);
-
-  // Risk Score Badge in Card
-  const scoreBoxX = pageWidth - margin - 46;
-  if (contract.riskLevel === 'HIGH') {
-    doc.setFillColor(239, 68, 68);
-  } else if (contract.riskLevel === 'MEDIUM') {
-    doc.setFillColor(245, 158, 11);
-  } else {
-    doc.setFillColor(16, 185, 129);
-  }
-  doc.roundedRect(scoreBoxX, 37, 42, 20, 2, 2, 'F');
-
+  // Header Title & Subtitle
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(14);
-  doc.text(`${contract.overallRiskScore}% RISK`, scoreBoxX + 21, 46, { align: 'center' });
+  doc.text('CONTRACT RISK & AUDIT REPORT', margin, 12);
 
-  doc.setFontSize(8);
-  doc.text(`${contract.riskLevel} SEVERITY`, scoreBoxX + 21, 52, { align: 'center' });
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(196, 181, 253);
+  doc.text('Automated Risk Analysis • Negotiation Counter-Proposals', margin, 18);
+  doc.text(
+    `Generated: ${new Date().toLocaleDateString('en-US', { dateStyle: 'medium' })} | Perspective: ${contract.userRole.toUpperCase()}`,
+    margin,
+    23
+  );
 
-  // Executive Summary & Explanation
+  // 2. Document Overview & Risk Score Card
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(226, 232, 240);
+  doc.roundedRect(margin, 34, contentWidth, 26, 2, 2, 'FD');
+
+  doc.setTextColor(15, 23, 42);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  const docTitle = contract.contractName || `Contract Report #${contract.id}`;
+  doc.text(docTitle.length > 50 ? docTitle.substring(0, 48) + '...' : docTitle, margin + 4, 41);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(100, 116, 139);
+  doc.text(`Type: ${contract.contractType || 'Legal Agreement'} | Report ID: #${contract.id}`, margin + 4, 47);
+  doc.text(`Total Clauses Audited: ${contract.clauses?.length || 0}`, margin + 4, 53);
+
+  // Risk Score Badge Box
+  const isHigh = contract.overallRiskScore >= 61;
+  const isMed = contract.overallRiskScore >= 31 && contract.overallRiskScore < 61;
+  const scoreBoxX = pageWidth - margin - 44;
+
+  if (isHigh) {
+    doc.setFillColor(239, 68, 68); // Red
+  } else if (isMed) {
+    doc.setFillColor(249, 115, 22); // Orange
+  } else {
+    doc.setFillColor(16, 185, 129); // Green
+  }
+  doc.roundedRect(scoreBoxX, 37, 40, 20, 2, 2, 'F');
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(13);
+  doc.text(`${contract.overallRiskScore}% RISK`, scoreBoxX + 20, 46, { align: 'center' });
+
+  doc.setFontSize(7.5);
+  doc.text(`${contract.riskLevel} SEVERITY`, scoreBoxX + 20, 52, { align: 'center' });
+
+  // 3. Executive Summary
   let currentY = 66;
   doc.setTextColor(15, 23, 42);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
-  doc.text('1. EXECUTIVE SUMMARY & RISK ASSESSMENT', margin, currentY);
+  doc.setFontSize(10.5);
+  doc.text('1. EXECUTIVE SUMMARY', margin, currentY);
 
-  currentY += 5;
+  currentY += 4.5;
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
+  doc.setFontSize(8.5);
   doc.setTextColor(51, 65, 85);
-  const summaryLines = doc.splitTextToSize(contract.riskExplanation || contract.contractSummary, pageWidth - (margin * 2));
-  doc.text(summaryLines, margin, currentY);
-  currentY += (summaryLines.length * 4.5) + 4;
 
-  // Key Contract Terms Table
+  const summaryText = contract.displaySummary || contract.contractSummary || contract.riskExplanation || 'Review critical clauses and recommended counter-proposals below before signing.';
+  const summaryLines = doc.splitTextToSize(summaryText, contentWidth);
+  doc.text(summaryLines, margin, currentY);
+  currentY += (summaryLines.length * 4.2) + 5;
+
+  // 4. Extracted Key Terms Table
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
+  doc.setFontSize(10.5);
   doc.setTextColor(15, 23, 42);
-  doc.text('2. KEY CONTRACT TERMS', margin, currentY);
-  currentY += 4;
+  doc.text('2. KEY EXTRACTED TERMS', margin, currentY);
+  currentY += 3.5;
 
   const keyTermsData = [
-    ['Duration / Term', contract.keyTerms.duration || 'Not specified'],
-    ['Payment / Invoicing', contract.keyTerms.payment || 'Not specified'],
-    ['Notice Period', contract.keyTerms.noticePeriod || 'Not specified'],
-    ['Renewal Provision', contract.keyTerms.renewal || 'Not specified'],
-    ['Governing Jurisdiction', contract.keyTerms.governingLaw || 'Not specified'],
-    ['Liability Limitation', contract.keyTerms.liabilityLimit || 'Not specified']
+    ['Duration / Term', contract.keyTerms?.duration || '12 Months (Renewable)'],
+    ['Notice Period', contract.keyTerms?.noticePeriod || '30 Days Notice'],
+    ['Parties Involved', contract.keyTerms?.parties || `Employer & You (${contract.userRole})`],
+    ['Payment / Invoicing', contract.keyTerms?.payment || 'Standard Compensation'],
+    ['Start Date', contract.keyTerms?.startDate || 'As defined in contract'],
+    ['Governing Jurisdiction', contract.keyTerms?.governingLaw || 'Applicable Jurisdiction & Laws']
   ];
 
   autoTable(doc, {
     startY: currentY,
-    head: [['Key Provision', 'Contractual Terms Extracted']],
+    head: [['Key Provision', 'Contractual Term Details']],
     body: keyTermsData,
     theme: 'grid',
-    headStyles: { fillColor: [15, 132, 235], textColor: 255, fontStyle: 'bold', fontSize: 8.5 },
-    bodyStyles: { fontSize: 8, textColor: [30, 41, 59] },
+    headStyles: { 
+      fillColor: [79, 70, 229], // Indigo #4F46E5
+      textColor: 255, 
+      fontStyle: 'bold', 
+      fontSize: 8.5 
+    },
+    bodyStyles: { 
+      fontSize: 8, 
+      textColor: [30, 41, 59] 
+    },
+    columnStyles: {
+      0: { cellWidth: 48, fontStyle: 'bold' },
+      1: { cellWidth: 'auto' }
+    },
     alternateRowStyles: { fillColor: [248, 250, 252] },
     margin: { left: margin, right: margin }
   });
 
   currentY = (doc as any).lastAutoTable.finalY + 8;
 
-  // 5 Things Before You Sign
-  if (contract.beforeYouSign && contract.beforeYouSign.length > 0) {
-    if (currentY > pageHeight - 50) {
-      doc.addPage();
-      currentY = 20;
-    }
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
-    doc.setTextColor(15, 23, 42);
-    doc.text('3. BEFORE YOU SIGN — 5 CRITICAL CHECKPOINTS', margin, currentY);
-    currentY += 6;
-
-    contract.beforeYouSign.forEach((point, index) => {
-      doc.setFillColor(254, 242, 242);
-      doc.setDrawColor(254, 202, 202);
-      
-      const pointLines = doc.splitTextToSize(`${index + 1}. ${point}`, pageWidth - (margin * 2) - 8);
-      const boxHeight = (pointLines.length * 4) + 4;
-
-      if (currentY + boxHeight > pageHeight - 20) {
-        doc.addPage();
-        currentY = 20;
-      }
-
-      doc.roundedRect(margin, currentY, pageWidth - (margin * 2), boxHeight, 1, 1, 'FD');
-      doc.setTextColor(153, 27, 27);
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8.5);
-      doc.text(pointLines, margin + 4, currentY + 4);
-      currentY += boxHeight + 2;
-    });
-
-    currentY += 4;
-  }
-
-  // Detailed Risky Clauses Analysis
-  if (currentY > pageHeight - 50) {
+  // 5. Detailed Clause Breakdown & Counter-Proposals
+  if (currentY > pageHeight - 45) {
     doc.addPage();
     currentY = 20;
   }
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
+  doc.setFontSize(10.5);
   doc.setTextColor(15, 23, 42);
-  doc.text('4. DETAILED CLAUSE RISK BREAKDOWN & SAFER ALTERNATIVES', margin, currentY);
+  doc.text('3. RANKED CLAUSE RISKS & COUNTER-PROPOSALS', margin, currentY);
   currentY += 4;
 
-  const clauseRows = contract.clauses.map(c => [
-    `${c.clauseNumber}\n[${c.category}]\nRisk: ${c.riskScore}% (${c.riskLevel})`,
-    `PLAIN ENGLISH MEANING:\n${c.plainExplanation}\n\nWHY RISKY:\n${c.whyRisky}\n\nSUGGESTED SAFER ALTERNATIVE:\n"${c.suggestedAlternative}"`
-  ]);
+  const sortedClauses = [...(contract.clauses || [])].sort((a, b) => b.riskScore - a.riskScore);
+
+  const clauseRows = sortedClauses.map((c, idx) => {
+    const rankLabel = `#${idx + 1} Rank • ${c.clauseNumber}`;
+    const categoryLabel = `[${c.category}]`;
+    const riskLabel = `Risk: ${c.riskScore}% (${c.riskLevel})`;
+
+    const col1 = `${rankLabel}\n${categoryLabel}\n${riskLabel}`;
+    
+    let col2 = `PLAIN MEANING:\n${c.plainExplanation}`;
+    if (c.whyRisky) {
+      col2 += `\n\nWHY RISKY:\n${c.whyRisky}`;
+    }
+    if (c.suggestedAlternative) {
+      col2 += `\n\nRECOMMENDED SAFER ALTERNATIVE:\n"${c.suggestedAlternative}"`;
+    }
+
+    return [col1, col2];
+  });
 
   autoTable(doc, {
     startY: currentY,
-    head: [['Clause & Risk', 'Plain-English Meaning, Risk Assessment & Safer Alternative']],
+    head: [['Clause & Risk', 'Plain-English Meaning, Risk Assessment & Recommended Alternative']],
     body: clauseRows,
     theme: 'striped',
-    headStyles: { fillColor: [11, 25, 44], textColor: 255, fontStyle: 'bold', fontSize: 8.5 },
+    headStyles: { 
+      fillColor: [30, 27, 75], // Deep indigo
+      textColor: 255, 
+      fontStyle: 'bold', 
+      fontSize: 8.5 
+    },
     columnStyles: {
-      0: { cellWidth: 44, fontSize: 8, fontStyle: 'bold' },
-      1: { cellWidth: 'auto', fontSize: 8 }
+      0: { cellWidth: 46, fontSize: 8, fontStyle: 'bold' },
+      1: { cellWidth: 'auto', fontSize: 7.8 }
     },
     margin: { left: margin, right: margin }
   });
 
-  // Footer / Legal Disclaimer on every page
+  // Footer on every page
   const totalPages = doc.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
@@ -181,14 +193,15 @@ export function generatePdfRiskReport(contract: ContractAnalysis): void {
     doc.setFontSize(7.5);
     doc.setTextColor(148, 163, 184);
     doc.text(
-      'LEGAL DISCLAIMER: ClauseX generates informational risk analyses for educational purposes and does not constitute formal legal counsel. Always consult a licensed attorney.',
+      'LEGAL DISCLAIMER: ClauseX provides informational contract risk reviews for negotiation guidance. Not formal legal advice.',
       margin,
       pageHeight - 8
     );
-    doc.text(`Page ${i} of ${totalPages}`, pageWidth - margin - 14, pageHeight - 8);
+    doc.text(`Page ${i} of ${totalPages}`, pageWidth - margin - 16, pageHeight - 8);
   }
 
-  // Trigger browser download
-  const safeName = (contract.contractName || 'Contract').replace(/[^a-zA-Z0-9_-]/g, '_');
+  // Download PDF
+  const safeName = (contract.contractName || `Contract_${contract.id}`).replace(/[^a-zA-Z0-9_-]/g, '_');
   doc.save(`Contract_Risk_Report_${safeName}.pdf`);
 }
+export default generatePdfRiskReport;

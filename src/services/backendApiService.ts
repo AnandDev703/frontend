@@ -394,7 +394,10 @@ export async function askReportQuestion(
   question: string
 ): Promise<{ text: string; referencedClause?: string }> {
   const cleanId = String(reportId).replace(/^[^\d]+/, '') || String(reportId);
-  const response = await fetch(`${BACKEND_REPORTS_URL}/${cleanId}/question`, {
+  const targetUrl = `${BACKEND_REPORTS_URL}/${cleanId}/question`;
+  console.log(`[askReportQuestion] Calling ${targetUrl} with question:`, question);
+
+  const response = await fetch(targetUrl, {
     method: "POST",
     credentials: "include",
     headers: {
@@ -404,16 +407,23 @@ export async function askReportQuestion(
     body: JSON.stringify({ question })
   });
 
+  const status = response.status;
+  const rawText = await response.text();
+  console.log(`[askReportQuestion] Status: ${status}, Raw Response:`, rawText);
+
   if (!response.ok) {
-    if (response.status === 401) {
+    if (status === 401) {
       throw new Error('401: Authentication required.');
     }
-    const errText = await response.text().catch(() => '');
-    throw new Error(`Question API failed (${response.status}): ${errText || response.statusText}`);
+    throw new Error(`Question API failed (${status}): ${rawText || response.statusText}`);
   }
 
-  const data = await response.json();
-  console.log(`===== POST /api/reports/${cleanId}/question RESPONSE =====`, data);
+  let data: any = {};
+  try {
+    data = JSON.parse(rawText);
+  } catch {
+    data = rawText;
+  }
 
   // Extract answer text from diverse possible backend response structures
   let answerText = '';
@@ -427,11 +437,16 @@ export async function askReportQuestion(
       data.reply || 
       data.message || 
       data.result || 
+      data.question_answer ||
       data.data?.answer || 
       data.data?.response || 
       data.data?.text ||
       (typeof data.data === 'string' ? data.data : '') ||
-      JSON.stringify(data);
+      '';
+  }
+
+  if (!answerText && typeof data === 'object') {
+    answerText = JSON.stringify(data, null, 2);
   }
 
   const clauseMatch = answerText.match(/Clause\s+[0-9]+(\.[0-9]+)?/i) || answerText.match(/Section\s+[0-9]+/i);

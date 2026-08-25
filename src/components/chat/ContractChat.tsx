@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useContract } from '../../context/ContractContext';
 import { askReportQuestion } from '../../services/backendApiService';
+import { getOfflineChatResponse } from '../../services/geminiService';
 import { ChatMessage, ClauseAnalysis, ContractAnalysis } from '../../types/contract';
 import { useUITranslations } from '../../data/uiTranslations';
 import { Modal } from '../common/Modal';
@@ -201,28 +202,33 @@ export const ContractChat: React.FC<ContractChatProps> = ({
     try {
       // Call backend chat API: POST /api/reports/:reportId/question
       const aiResponse = await askReportQuestion(currentContract.id, userText);
-      const aiMsg: ChatMessage = {
-        id: 'ai-' + Date.now(),
-        sender: 'ai',
-        text: aiResponse.text || "No response received from the backend review assistant.",
-        referencedClause: aiResponse.referencedClause,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      };
-      addChatMessage(aiMsg);
+      if (aiResponse && aiResponse.text && aiResponse.text.trim().length > 0) {
+        const aiMsg: ChatMessage = {
+          id: 'ai-' + Date.now(),
+          sender: 'ai',
+          text: aiResponse.text,
+          referencedClause: aiResponse.referencedClause,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        };
+        addChatMessage(aiMsg);
+        return;
+      }
     } catch (err: any) {
-      console.error('[ContractChat] Backend Question API error:', err);
-      const errorAiMsg: ChatMessage = {
-        id: 'ai-err-' + Date.now(),
-        sender: 'ai',
-        text: `Based on "${currentContract.contractName}" (${currentContract.overallRiskScore}% Risk):\n\n${
-          currentContract.displaySummary || currentContract.contractSummary || 'Please inspect the clause risk cards in the dashboard for detailed metrics.'
-        }`,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      };
-      addChatMessage(errorAiMsg);
+      console.warn('[ContractChat] Backend Question API error, using grounded legal fallback:', err);
     } finally {
       setIsLoading(false);
     }
+
+    // Grounded fallback answering the user's specific question
+    const fallbackAnswer = getOfflineChatResponse(userText, currentContract);
+    const fallbackMsg: ChatMessage = {
+      id: 'ai-' + Date.now(),
+      sender: 'ai',
+      text: fallbackAnswer.text,
+      referencedClause: fallbackAnswer.referencedClause,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+    addChatMessage(fallbackMsg);
   };
 
   const handleSend = (e?: React.FormEvent) => {
