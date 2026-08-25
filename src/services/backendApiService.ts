@@ -392,10 +392,11 @@ export async function compareReports(
 export async function askReportQuestion(
   reportId: number | string,
   question: string
-): Promise<{ text: string; referencedClause?: string }> {
+): Promise<{ text: string; confidence?: string }> {
   const cleanId = String(reportId).replace(/^[^\d]+/, '') || String(reportId);
   const targetUrl = `${BACKEND_REPORTS_URL}/${cleanId}/question`;
-  console.log(`[askReportQuestion] Calling ${targetUrl} with question:`, question);
+
+  console.log(`QUESTION API REQUEST\nreportId: ${cleanId}\nquestion: ${question}`);
 
   const response = await fetch(targetUrl, {
     method: "POST",
@@ -409,7 +410,7 @@ export async function askReportQuestion(
 
   const status = response.status;
   const rawText = await response.text();
-  console.log(`[askReportQuestion] Status: ${status}, Raw Response:`, rawText);
+  console.log(`QUESTION API RESPONSE (${status})\n`, rawText);
 
   if (!response.ok) {
     if (status === 401) {
@@ -425,35 +426,58 @@ export async function askReportQuestion(
     data = rawText;
   }
 
-  // Extract answer text from diverse possible backend response structures
+  // Extract answer text from diverse possible backend response structures:
+  // 1. { status: "good", answer: { answer: "...", confidence: "high" } }
+  // 2. { answer: { answer: "...", confidence: "high" } }
+  // 3. { answer: "...", confidence: "high" }
+  // 4. { response: "..." } / { reply: "..." } / { text: "..." }
   let answerText = '';
+  let confidence = '';
+
   if (typeof data === 'string') {
     answerText = data;
   } else if (typeof data === 'object' && data !== null) {
-    answerText = 
-      data.answer || 
-      data.response || 
-      data.text || 
-      data.reply || 
-      data.message || 
-      data.result || 
-      data.question_answer ||
-      data.data?.answer || 
-      data.data?.response || 
-      data.data?.text ||
-      (typeof data.data === 'string' ? data.data : '') ||
-      '';
+    // Check if data.answer is an object with an "answer" string property
+    if (data.answer && typeof data.answer === 'object') {
+      answerText = data.answer.answer || data.answer.text || data.answer.message || '';
+      confidence = data.answer.confidence || '';
+    } else if (typeof data.answer === 'string') {
+      answerText = data.answer;
+      confidence = data.confidence || '';
+    }
+
+    // Secondary checks for other wrappers
+    if (!answerText) {
+      if (data.data && typeof data.data === 'object') {
+        answerText = data.data.answer?.answer || data.data.answer || data.data.text || data.data.response || '';
+        confidence = data.data.confidence || data.data.answer?.confidence || '';
+      } else if (typeof data.data === 'string') {
+        answerText = data.data;
+      }
+    }
+
+    if (!answerText) {
+      answerText = data.response || data.reply || data.message || data.text || data.result || '';
+      confidence = data.confidence || '';
+    }
   }
 
-  if (!answerText && typeof data === 'object') {
-    answerText = JSON.stringify(data, null, 2);
+  // Fallback string conversion if not found
+  if (typeof answerText !== 'string' || !answerText.trim()) {
+    if (typeof data === 'object' && data !== null && data.answer) {
+      answerText = typeof data.answer === 'string' ? data.answer : JSON.stringify(data.answer);
+    } else if (typeof data === 'string') {
+      answerText = data;
+    }
   }
 
-  const clauseMatch = answerText.match(/Clause\s+[0-9]+(\.[0-9]+)?/i) || answerText.match(/Section\s+[0-9]+/i);
+  if (!answerText.trim()) {
+    throw new Error('Backend returned empty answer content');
+  }
 
   return {
     text: answerText.trim(),
-    referencedClause: clauseMatch ? clauseMatch[0] : undefined
+    confidence
   };
 }
 

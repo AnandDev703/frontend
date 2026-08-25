@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useContract } from '../../context/ContractContext';
 import { askReportQuestion } from '../../services/backendApiService';
-import { getOfflineChatResponse } from '../../services/geminiService';
 import { ChatMessage, ClauseAnalysis, ContractAnalysis } from '../../types/contract';
 import { useUITranslations } from '../../data/uiTranslations';
 import { Modal } from '../common/Modal';
@@ -86,14 +85,13 @@ export const ContractChat: React.FC<ContractChatProps> = ({
 
   const currentContract = activeContract || contractHistory[0];
 
-  // Dynamically fetch questions from the chat API specifically for this contract
+  // Dynamically fetch tailored questions from the chat API for this specific contract
   const fetchDynamicSuggestions = useCallback(async (contract: ContractAnalysis) => {
     if (!contract || !contract.id) return;
     setIsLoadingSuggestions(true);
 
     try {
-      // Send a specific prompt to the Chat API to extract tailored questions for this contract
-      const prompt = `Based on this contract, generate exactly 4 short, critical, high-risk questions I should ask about its clauses. Return ONLY the 4 questions, one question per line, with no introductory text.`;
+      const prompt = `Based on this contract, generate exactly 4 short, specific, high-risk questions I should ask about its clauses. Return ONLY the 4 questions, one question per line, with no introductory text.`;
       const response = await askReportQuestion(contract.id, prompt);
 
       if (response && response.text) {
@@ -113,21 +111,13 @@ export const ContractChat: React.FC<ContractChatProps> = ({
       setIsLoadingSuggestions(false);
     }
 
-    // Fallback: Dynamically generate tailored questions from the contract's actual parsed clauses
-    if (contract.clauses && contract.clauses.length > 0) {
-      const topRisks = [...contract.clauses].sort((a, b) => b.riskScore - a.riskScore).slice(0, 4);
-      const generated = topRisks.map(c => 
-        `What counter-proposal should I propose for ${c.clauseNumber} (${c.category})?`
-      );
-      setDynamicSuggestions(generated);
-    } else {
-      setDynamicSuggestions([
-        'What are the biggest financial penalties in this agreement?',
-        'Can I terminate this contract early without penalties?',
-        'What is my maximum legal liability exposure?',
-        'Who owns the software code and pre-existing IP?'
-      ]);
-    }
+    // Contextual fallback questions
+    setDynamicSuggestions([
+      'How much am I getting paid for this work?',
+      'Can I terminate this contract early without paying penalties?',
+      'What is my maximum legal liability exposure?',
+      'Who owns the software code and intellectual property?'
+    ]);
   }, []);
 
   // Fetch dynamic suggestions whenever the active contract changes
@@ -189,6 +179,7 @@ export const ContractChat: React.FC<ContractChatProps> = ({
     const userText = promptToSend.trim();
     setInputQuery('');
 
+    // 1. Show user's question immediately
     const userMsg: ChatMessage = {
       id: 'user-' + Date.now(),
       sender: 'user',
@@ -200,35 +191,30 @@ export const ContractChat: React.FC<ContractChatProps> = ({
     setIsLoading(true);
 
     try {
-      // Call backend chat API: POST /api/reports/:reportId/question
+      // 2. Send question to POST /api/reports/:reportId/question with { question }
       const aiResponse = await askReportQuestion(currentContract.id, userText);
-      if (aiResponse && aiResponse.text && aiResponse.text.trim().length > 0) {
-        const aiMsg: ChatMessage = {
-          id: 'ai-' + Date.now(),
-          sender: 'ai',
-          text: aiResponse.text,
-          referencedClause: aiResponse.referencedClause,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        };
-        addChatMessage(aiMsg);
-        return;
-      }
+      
+      const aiMsg: ChatMessage = {
+        id: 'ai-' + Date.now(),
+        sender: 'ai',
+        text: aiResponse.text,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+      addChatMessage(aiMsg);
     } catch (err: any) {
-      console.warn('[ContractChat] Backend Question API error, using grounded legal fallback:', err);
+      console.error("QUESTION API REQUEST\nreportId:", currentContract.id, "\nquestion:", userText);
+      console.error("QUESTION API ERROR\n", err);
+
+      const errorAiMsg: ChatMessage = {
+        id: 'ai-err-' + Date.now(),
+        sender: 'ai',
+        text: "I couldn't get an answer right now. Please try again.",
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+      addChatMessage(errorAiMsg);
     } finally {
       setIsLoading(false);
     }
-
-    // Grounded fallback answering the user's specific question
-    const fallbackAnswer = getOfflineChatResponse(userText, currentContract);
-    const fallbackMsg: ChatMessage = {
-      id: 'ai-' + Date.now(),
-      sender: 'ai',
-      text: fallbackAnswer.text,
-      referencedClause: fallbackAnswer.referencedClause,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    };
-    addChatMessage(fallbackMsg);
   };
 
   const handleSend = (e?: React.FormEvent) => {
@@ -508,15 +494,17 @@ export const ContractChat: React.FC<ContractChatProps> = ({
                 );
               })}
 
-              {/* Loading bubble */}
+              {/* Loading bubble with animated bouncing dots */}
               {isLoading && (
                 <div className="flex gap-3 justify-start items-center animate-fade-in">
-                  <div className="w-8 h-8 rounded-xl bg-purple-500/15 border border-purple-300/40 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0 animate-pulse">
+                  <div className="w-8 h-8 rounded-xl bg-purple-500/15 border border-purple-300/40 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
                     <Bot size={17} />
                   </div>
-                  <div className="p-3.5 rounded-2xl rounded-tl-xs liquid-glass border border-slate-200/80 dark:border-white/10 flex items-center gap-2 text-xs text-purple-600 dark:text-purple-400">
-                    <Loader2 size={15} className="animate-spin" />
-                    <span className="font-bold">Evaluating clauses via backend API...</span>
+                  <div className="p-3.5 px-4 rounded-2xl rounded-tl-xs liquid-glass border border-slate-200/80 dark:border-white/10 flex items-center gap-1.5 text-xs text-purple-600 dark:text-purple-400">
+                    <span className="w-2 h-2 rounded-full bg-purple-600 dark:bg-purple-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <span className="w-2 h-2 rounded-full bg-purple-600 dark:bg-purple-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <span className="w-2 h-2 rounded-full bg-purple-600 dark:bg-purple-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+                    <span className="ml-2 font-bold text-[11px]">Thinking...</span>
                   </div>
                 </div>
               )}
@@ -529,12 +517,12 @@ export const ContractChat: React.FC<ContractChatProps> = ({
               <div className="flex items-center gap-1.5 shrink-0 pl-1">
                 <span className="text-[11px] font-black text-purple-600 dark:text-purple-400 flex items-center gap-1">
                   <Sparkles size={13} />
-                  <span>AI Suggestions:</span>
+                  <span>Suggestions:</span>
                 </span>
                 <button
                   type="button"
                   onClick={() => currentContract && fetchDynamicSuggestions(currentContract)}
-                  disabled={isLoadingSuggestions}
+                  disabled={isLoadingSuggestions || isLoading}
                   className="p-1 rounded-lg hover:bg-purple-500/15 text-slate-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors cursor-pointer disabled:opacity-40"
                   title="Generate new suggestions from Chat API"
                 >
@@ -545,7 +533,7 @@ export const ContractChat: React.FC<ContractChatProps> = ({
               {isLoadingSuggestions ? (
                 <div className="flex items-center gap-2 text-xs text-purple-600 dark:text-purple-400 px-3 py-1.5 animate-pulse">
                   <Loader2 size={13} className="animate-spin" />
-                  <span>Generating tailored questions for this contract...</span>
+                  <span>Loading tailored questions...</span>
                 </div>
               ) : (
                 dynamicSuggestions.map((q, idx) => (
@@ -569,15 +557,16 @@ export const ContractChat: React.FC<ContractChatProps> = ({
                 type="text"
                 value={inputQuery}
                 onChange={(e) => setInputQuery(e.target.value)}
+                disabled={isLoading}
                 placeholder={`Ask backend AI about ${currentContract?.contractName || 'this contract'}...`}
-                className="flex-1 px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-[#070b14] text-xs sm:text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500 shadow-inner font-medium"
+                className="flex-1 px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-[#070b14] text-xs sm:text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-purple-500/30 focus:border-purple-500 shadow-inner font-medium disabled:opacity-60"
               />
               <button
                 type="submit"
                 disabled={!inputQuery.trim() || isLoading}
                 className="p-3 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-lg shadow-purple-500/25 disabled:opacity-40 transition-all transform hover:scale-105 cursor-pointer shrink-0"
               >
-                <Send size={15} />
+                {isLoading ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
               </button>
             </form>
           </div>

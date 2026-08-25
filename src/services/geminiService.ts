@@ -236,21 +236,13 @@ export async function askContractAI(
   question: string,
   contract: ContractAnalysis,
   _chatHistory: ChatMessage[] = []
-): Promise<{ text: string; referencedClause?: string }> {
-  // 1. Primary: Use backend API endpoint POST /api/reports/:reportId/question
+): Promise<{ text: string; confidence?: string }> {
   if (contract?.id) {
-    try {
-      const backendReply = await askReportQuestion(contract.id, question);
-      if (backendReply && backendReply.text) {
-        return backendReply;
-      }
-    } catch (err: any) {
-      console.warn('[askContractAI] Backend question API failed, falling back to local grounded reasoning:', err);
-    }
+    return askReportQuestion(contract.id, question);
   }
-
-  // 2. Fallback: Local grounded legal reasoning without Gemini API dependency
-  return getOfflineChatResponse(question, contract);
+  return {
+    text: "I couldn't get an answer right now. Please select a valid contract and try again."
+  };
 }
 
 export function getOfflineChatResponse(question: string, contract: ContractAnalysis): { text: string; referencedClause?: string } {
